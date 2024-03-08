@@ -2,6 +2,8 @@
 # The API can be used with two different video inputs:
 #   1. the ZED live video (Live mode)
 #   2. video files recorded in SVO format with the ZED API (Playback mode)
+import math
+
 import pyzed.sl as sl
 import numpy    as np
 import matplotlib.pyplot as plt
@@ -45,7 +47,10 @@ if __name__ == '__main__':
     depth_view          = sl.Mat()  # Color rendering of the depth.
     #                                 Type: sl.MAT_TYPE.U8_C4
     #                                 Each pixel contains 4 unsigned char (B, G, R, A).
-    runtime_parameters  = sl.RuntimeParameters()
+    runtime_parameters  = sl.RuntimeParameters(
+        enable_fill_mode=True
+    )
+    # runtime_parameters.sensing_mode = sl.SENSING_MODE.FILL
 
     if zed.grab(runtime_parameters) == sl.ERROR_CODE.SUCCESS:
         # A new image is available if grab() returns ERROR_CODE.SUCCESS
@@ -80,7 +85,18 @@ if __name__ == '__main__':
     image_data = image.get_data()
     depth_data = depth.get_data()
     depth_imag = depth_view.get_data()  # 获得的灰度图版本的 深度图 按照图像的方式进行获取
-    point_data = point.get_data()
+
+    # Extract the distance of the point at the center of the image
+    x = round(image.get_width() / 2)
+    y = round(image.get_height() / 2)
+    err, point_cloud_value = point.get_value(x, y)
+    distance = np.sqrt(point_cloud_value[0] * point_cloud_value[0] +
+                       point_cloud_value[1] * point_cloud_value[1] +
+                       point_cloud_value[2] * point_cloud_value[2])
+    print("Distance to Camera at ({0}, {1}): {2} mm".format(x, y, distance), end="\r")
+    # We can also use directly the depth map instead of the point cloud to extract the depth value at a specific pixel.
+    err, depth_value = depth.get_value(x, y)
+    print("Distance to Camera at ({0}, {1}): {2} mm".format(x, y, depth_value), end="\r")
 
     print(depth.get_pixel_bytes(), '\n',    # Returns the size of one pixel in bytes.
           depth.get_data_type(), '\n',      # Returns the format of the matrix.
@@ -90,8 +106,6 @@ if __name__ == '__main__':
           )
     print(depth_data.shape)
     print(type(depth_data[0][0]))           # ZED SDK 中的深度图通常以 <class 'numpy.float32'> 数据类型存储。
-
-
 
     # 获取某点的深度
     x_value = 1000
